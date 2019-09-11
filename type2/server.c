@@ -17,16 +17,17 @@ void init_pthread(int num);
 
 int sfd;
 int cfd[3];
+int status[3];
 pthread_t tid[3];
+pthread_mutex_t synch_init;
 pthread_mutex_t mutex[3];
 
 int main()
 {
 	int new_cfd;
 	int ret;
-	int i;
-	int status[3];
-	
+	int i, j;
+
 	init_server();
 
 	init_pthread(3);
@@ -41,6 +42,35 @@ int main()
 			continue;
 		}
 
+		while (1) {
+			for (i = 0; i < 3; ++i) {
+				// if (status[i] == 0)
+					// status[i] = 1;
+					// cfd[i] = new_cfd;
+					// break;
+				
+				ret = pthread_mutex_trylock(&mutex[i]);
+				if (ret == 0)
+					break;
+			}
+
+			if (i != 4)
+				break;
+		}
+
+		// for (j = 0; j < 3; ++j) {
+		// 	printf("%d ", status[j]);
+		// }
+		// printf("\n");
+
+		// for (j = 0; j < 3; ++j) {
+		// 	printf("%d ", cfd[j]);
+		// }
+		// printf("\n");
+
+		// printf("id_tid=%d\n", i);
+
+		// pthread_mutex_unlock(&mutex[i]);
 	}
 
 	return 0;
@@ -49,31 +79,37 @@ int main()
 void init_pthread(int num)
 {
 	int i;
+	pthread_mutex_init(&synch_init, NULL);
+
 	for (i = 0; i < num; ++i) {
 		pthread_mutex_init(&mutex[i], NULL);
 		pthread_mutex_lock(&mutex[i]);
+
+		pthread_mutex_lock(&synch_init);
 		pthread_create(&tid[i], NULL, handler, (void*) &i);
 	}
 }
 
 void* handler(void* ptr)
 {
-	int* ptr1 = (int*) ptr;
-	int i = *ptr1;
+	int i = *((int*) ptr);
 	int ret;
 	char buf[10];
+
+	pthread_mutex_unlock(&synch_init);
 
 	while (1) {
 		pthread_mutex_lock(&mutex[i]);
 
 		ret = read(cfd[i], buf, 10);
 		buf[ret++] = '\0';
-		printf("%s\n", buf);
+		printf("id_tid=%d\nmsg=%s\n", i, buf);
 
 		sleep(10);
 
 		write(cfd[i], "Hi", 2);
 
+		status[i] = 0;
 		close(cfd[i]);
 		memset(buf, 0, ret);
 	}
@@ -83,7 +119,8 @@ void sighandler(int sig)
 {
 	int i;
 	for (i = 0; i < 3; ++i) {
-		pthread_cancel();
+		pthread_cancel(tid[i]);
+	}
 
 	shutdown(sfd, SHUT_RDWR);
 	close(sfd);

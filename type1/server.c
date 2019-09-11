@@ -46,12 +46,21 @@ void* handler(void* ptr)
 	char buf[10];
 
 	ret = read(cfd, buf, 10);
+	if (ret == -1) {
+		perror("Thread: read");
+		pthread_exit(NULL);
+	}
+
 	buf[ret++] = '\0';
 	printf("%s\n", buf);
 
 	sleep(10);
 
-	write(cfd, "Hi", 2);
+	ret = write(cfd, "Hi", 2);
+	if (ret == -1) {
+		perror("Thread: write");
+		pthread_exit(NULL);
+	}
 
 	close(cfd);
 
